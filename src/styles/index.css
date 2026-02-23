@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base mobile-first reset */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-black text-white antialiased;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Disable input zoom on iOS */
+input[type="number"],
+input[type="text"] {
+  font-size: 16px;
+}
