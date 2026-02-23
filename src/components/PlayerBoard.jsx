@@ -15,6 +15,7 @@
  */
 
 import { useState } from 'react';
+import LedDisplay from './LedDisplay';
 
 export default function PlayerBoard({
   // Current state
@@ -107,6 +108,11 @@ export default function PlayerBoard({
         )}
       </div>
 
+      {/* ---- LED Scrolling Display ---- */}
+      <div className="px-4 mb-6">
+        <LedDisplay role="player" />
+      </div>
+
       {/* ---- Base Amount Setup (shown until confirmed) ---- */}
       {!baseConfirmed && (
         <div className="px-6 pb-6">
@@ -177,8 +183,8 @@ export default function PlayerBoard({
               onClick={onUndo}
               disabled={lastActionAmount === 0}
               className={`w-full py-4 rounded-2xl text-lg font-bold transition-colors ${lastActionAmount !== 0
-                  ? 'bg-yellow-500/90 hover:bg-yellow-400 text-yellow-950'
-                  : 'bg-green-800/40 text-green-600/40 cursor-not-allowed'
+                ? 'bg-yellow-500/90 hover:bg-yellow-400 text-yellow-950'
+                : 'bg-green-800/40 text-green-600/40 cursor-not-allowed'
                 }`}
             >
               Undo

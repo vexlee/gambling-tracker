@@ -98,10 +98,10 @@ export default function App() {
         <button
           onClick={game.createRoom}
           disabled={game.loading}
-          className="w-full bg-red-800/40 hover:bg-red-700/50 border border-red-600/30 rounded-2xl p-5 text-left transition-colors disabled:opacity-50"
+          className="w-full bg-yellow-800/40 hover:bg-yellow-700/50 border border-yellow-600/30 rounded-2xl p-5 text-left transition-colors disabled:opacity-50"
         >
-          <p className="text-lg font-bold text-red-300">Create Room (Banker)</p>
-          <p className="text-red-400/60 text-sm mt-1">
+          <p className="text-lg font-bold text-yellow-300">Create Room (Banker)</p>
+          <p className="text-yellow-400/60 text-sm mt-1">
             Start a multiplayer session. You'll be the Banker.
           </p>
         </button>
