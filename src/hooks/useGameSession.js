@@ -121,6 +121,7 @@ export function useGameSession() {
     localStorage.removeItem('single_base');
     localStorage.removeItem('single_net');
     localStorage.removeItem('single_last_action');
+    localStorage.removeItem('auto_join_room');
     setMode(null);
   }, []);
 
@@ -156,6 +157,7 @@ export function useGameSession() {
       setRole('banker');
       setRoomStatus('active');
       setMode('multi');
+      localStorage.setItem('auto_join_room', code);
     } catch (err) {
       setError(err.message || 'Failed to create room');
     } finally {
@@ -198,6 +200,7 @@ export function useGameSession() {
           setLastActionAmount(existing.last_action_amount || 0);
           setRoomStatus(room.status);
           setMode('multi');
+          localStorage.setItem('auto_join_room', code);
           return;
         }
 
@@ -228,6 +231,7 @@ export function useGameSession() {
         setRole(assignedRole);
         setRoomStatus(room.status);
         setMode('multi');
+        localStorage.setItem('auto_join_room', code);
       } catch (err) {
         setError(err.message || 'Failed to join room');
       } finally {
@@ -236,6 +240,16 @@ export function useGameSession() {
     },
     [deviceUUID]
   );
+
+  // =========================================================================
+  // MULTIPLAYER: AUTO-JOIN ON LOAD
+  // =========================================================================
+  useEffect(() => {
+    const savedRoom = localStorage.getItem('auto_join_room');
+    if (savedRoom && !mode && !loading && !roomId) {
+      joinRoom(savedRoom);
+    }
+  }, [joinRoom]);
 
   // =========================================================================
   // MULTIPLAYER: PLAYER ACTIONS
@@ -248,7 +262,7 @@ export function useGameSession() {
       if (roomId) {
         await supabase
           .from('players')
-          .update({ base_amount: amount })
+          .update({ base_amount: amount, room_id: roomId })
           .eq('uuid', deviceUUID)
           .eq('room_id', roomId);
       }
@@ -267,12 +281,12 @@ export function useGameSession() {
       setCurrentNet(newNet);
       setLastActionAmount(delta);
 
-      // Persist to Supabase
       const { error: updateErr } = await supabase
         .from('players')
         .update({
           current_net: newNet,
           last_action_amount: delta,
+          room_id: roomId,
           updated_at: new Date().toISOString(),
         })
         .eq('uuid', deviceUUID)
@@ -303,6 +317,7 @@ export function useGameSession() {
       .update({
         current_net: newNet,
         last_action_amount: 0,
+        room_id: roomId,
         updated_at: new Date().toISOString(),
       })
       .eq('uuid', deviceUUID)
@@ -396,6 +411,7 @@ export function useGameSession() {
     setRoomStatus(null);
     setMode(null);
     setError(null);
+    localStorage.removeItem('auto_join_room');
   }, [role, roomId]);
 
   // =========================================================================
