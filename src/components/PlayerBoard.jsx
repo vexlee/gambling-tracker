@@ -36,9 +36,9 @@ export default function PlayerBoard({
   const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   // Positive multipliers (win)
-  const positiveMultipliers = [1, 2, 3, 5, 10];
+  const positiveMultipliers = [1, 2, 3, 4, 5];
   // Negative multipliers (loss)
-  const negativeMultipliers = [-1, -2, -3, -5, -10];
+  const negativeMultipliers = [-1, -2, -3, -4, -5];
 
   /** Confirm the base amount */
   const handleConfirmBase = () => {
