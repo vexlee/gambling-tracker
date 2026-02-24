@@ -44,6 +44,9 @@ function generateRoomCode() {
 export function useGameSession() {
   // ---- Identity ----
   const [deviceUUID] = useState(() => getDeviceUUID());
+  const [playerName, setPlayerNameState] = useState(() => {
+    return localStorage.getItem('player_name') || '';
+  });
 
   // ---- Mode selection: null | 'single' | 'multi' ----
   const [mode, setMode] = useState(null);
@@ -146,6 +149,7 @@ export function useGameSession() {
         uuid: deviceUUID,
         room_id: code,
         role: 'banker',
+        name: playerName || `Player ${uuidv4().slice(0, 4)}`, // fallback though it doesn't matter much for banker
         base_amount: 0,
         current_net: 0,
         last_action_amount: 0,
@@ -220,6 +224,7 @@ export function useGameSession() {
           uuid: deviceUUID,
           room_id: code,
           role: assignedRole,
+          name: playerName,
           base_amount: 0,
           current_net: 0,
           last_action_amount: 0,
@@ -254,6 +259,23 @@ export function useGameSession() {
   // =========================================================================
   // MULTIPLAYER: PLAYER ACTIONS
   // =========================================================================
+
+  /** Set the player's name and persist to local storage and Supabase */
+  const setPlayerName = useCallback(
+    async (name) => {
+      setPlayerNameState(name);
+      localStorage.setItem('player_name', name);
+      // If we are currently in a room as a player, update the DB
+      if (mode === 'multi' && roomId && role === 'player') {
+        await supabase
+          .from('players')
+          .update({ name: name, updated_at: new Date().toISOString() })
+          .eq('uuid', deviceUUID)
+          .eq('room_id', roomId);
+      }
+    },
+    [mode, roomId, role, deviceUUID]
+  );
 
   /** Set the player's base amount and persist to Supabase */
   const setPlayerBase = useCallback(
@@ -420,6 +442,8 @@ export function useGameSession() {
   return {
     // Identity
     deviceUUID,
+    playerName,
+    setPlayerName,
 
     // Mode
     mode,

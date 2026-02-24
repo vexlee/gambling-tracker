@@ -29,6 +29,8 @@ export default function App() {
         onUndo={game.singlePlayerUndo}
         onExit={game.singlePlayerExit}
         roomId={null}
+        playerName={game.playerName}
+        onSetName={game.setPlayerName}
       />
     );
   }
@@ -48,6 +50,8 @@ export default function App() {
         onUndo={game.playerUndo}
         onExit={game.leaveRoom}
         roomId={game.roomId}
+        playerName={game.playerName}
+        onSetName={game.setPlayerName}
       />
     );
   }

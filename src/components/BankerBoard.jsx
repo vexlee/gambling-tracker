@@ -136,8 +136,8 @@ export default function BankerBoard({
                       key={p.uuid}
                       className="flex justify-between items-center py-1.5"
                     >
-                      <span className="text-yellow-200/70 text-sm">
-                        Player {idx + 1}
+                      <span className="text-yellow-200/70 text-sm truncate max-w-[150px]">
+                        {p.name || `Player ${idx + 1}`}
                       </span>
                       <span
                         className={`font-mono text-sm font-medium ${p.current_net > 0
