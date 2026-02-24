@@ -25,6 +25,7 @@ export default function BankerBoard({
 }) {
   // ---- Timer ----
   const [elapsed, setElapsed] = useState(0);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -78,7 +79,7 @@ export default function BankerBoard({
           </p>
         </div>
         <button
-          onClick={onExit}
+          onClick={() => setShowExitConfirm(true)}
           className="px-4 py-2 bg-yellow-700/60 hover:bg-yellow-600/80 rounded-xl text-sm font-medium transition-colors"
         >
           End Game
@@ -123,32 +124,34 @@ export default function BankerBoard({
 
           {/* Player breakdown list */}
           {players.length > 0 && (
-            <div className="space-y-2 border-t border-yellow-700/30 pt-4 mt-2">
+            <div className="border-t border-yellow-700/30 pt-4 mt-2">
               <p className="text-yellow-400/60 text-xs uppercase tracking-wider mb-2">
                 Player Nets
               </p>
-              {players
-                .filter((p) => p.role === 'player')
-                .map((p, idx) => (
-                  <div
-                    key={p.uuid}
-                    className="flex justify-between items-center py-1.5"
-                  >
-                    <span className="text-yellow-200/70 text-sm">
-                      Player {idx + 1}
-                    </span>
-                    <span
-                      className={`font-mono text-sm font-medium ${p.current_net > 0
-                        ? 'text-green-400'
-                        : p.current_net < 0
-                          ? 'text-red-400'
-                          : 'text-yellow-200/50'
-                        }`}
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                {players
+                  .filter((p) => p.role === 'player')
+                  .map((p, idx) => (
+                    <div
+                      key={p.uuid}
+                      className="flex justify-between items-center py-1.5"
                     >
-                      {formatNet(p.current_net || 0)}
-                    </span>
-                  </div>
-                ))}
+                      <span className="text-yellow-200/70 text-sm">
+                        Player {idx + 1}
+                      </span>
+                      <span
+                        className={`font-mono text-sm font-medium ${p.current_net > 0
+                          ? 'text-green-400'
+                          : p.current_net < 0
+                            ? 'text-red-400'
+                            : 'text-yellow-200/50'
+                          }`}
+                      >
+                        {formatNet(p.current_net || 0)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
             </div>
           )}
 
@@ -168,6 +171,32 @@ export default function BankerBoard({
           with players
         </p>
       </div>
+
+      {/* ---- Exit Confirmation Modal ---- */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-yellow-950 border border-yellow-700/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">End Game?</h3>
+            <p className="text-yellow-200/70 mb-6 font-medium">
+              Are you sure you want to end this game? All players will be disconnected.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 px-4 py-3 bg-yellow-900/50 hover:bg-yellow-800/50 text-white rounded-xl font-medium transition-colors border border-yellow-700/30"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onExit}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-colors shadow-lg"
+              >
+                End Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ export default function PlayerBoard({
 }) {
   const [baseInput, setBaseInput] = useState(baseAmount > 0 ? String(baseAmount) : '');
   const [baseConfirmed, setBaseConfirmed] = useState(baseAmount > 0);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   // Positive multipliers (win)
   const positiveMultipliers = [1, 2, 3, 5, 10];
@@ -74,7 +75,7 @@ export default function PlayerBoard({
           )}
         </div>
         <button
-          onClick={onExit}
+          onClick={() => setShowExitConfirm(true)}
           className="px-4 py-2 bg-green-700/60 hover:bg-green-600/80 rounded-xl text-sm font-medium transition-colors"
         >
           Exit
@@ -194,6 +195,32 @@ export default function PlayerBoard({
                 </span>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Exit Confirmation Modal ---- */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-green-950 border border-green-700/50 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2">Exit Game?</h3>
+            <p className="text-green-200/70 mb-6 font-medium">
+              Are you sure you want to leave the game? Your current net will be lost unless you rejoin.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 px-4 py-3 bg-green-900/50 hover:bg-green-800/50 text-white rounded-xl font-medium transition-colors border border-green-700/30"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onExit}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-colors shadow-lg"
+              >
+                Exit
+              </button>
+            </div>
           </div>
         </div>
       )}
