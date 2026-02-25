@@ -78,10 +78,10 @@ export default function App() {
       {/* Logo / Title */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-extrabold tracking-tight mb-2">
-          🎲 Tracker
+          🎲♣️ Tracker♦️🎲
         </h1>
         <p className="text-gray-400 text-sm">
-          Real-time gambling session tracker
+          Real-time session tracker
         </p>
       </div>
 
