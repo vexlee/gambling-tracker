@@ -22,6 +22,7 @@ export default function BankerBoard({
   players,
   roomId,
   onExit,
+  promptPlayerTie,
 }) {
   // ---- Timer ----
   const [elapsed, setElapsed] = useState(0);
@@ -66,7 +67,25 @@ export default function BankerBoard({
         : 'text-white';
 
   // Count active players (non-banker)
-  const playerCount = players.filter((p) => p.role === 'player').length;
+  const activePlayers = players.filter((p) => p.role === 'player');
+  const playerCount = activePlayers.length;
+
+  // Calculate majority rounds
+  const roundCounts = activePlayers.map((p) => (p.round_history || []).length);
+  let majorityRounds = 0;
+  if (roundCounts.length > 0) {
+    const counts = {};
+    let maxCount = 0;
+    for (const rounds of roundCounts) {
+      counts[rounds] = (counts[rounds] || 0) + 1;
+      if (counts[rounds] > maxCount) {
+        maxCount = counts[rounds];
+        majorityRounds = rounds;
+      } else if (counts[rounds] === maxCount && rounds > majorityRounds) {
+        majorityRounds = rounds;
+      }
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-yellow-800 via-yellow-900 to-yellow-950 text-white flex flex-col">
@@ -97,15 +116,22 @@ export default function BankerBoard({
       </div>
 
       {/* ---- Banker Net (the big number) ---- */}
-      <div className="text-center py-10">
+      <div className="text-center py-6">
         <p className="text-yellow-300 text-sm uppercase tracking-widest mb-2">
           Your Net (Banker)
         </p>
         <p className={`text-6xl font-extrabold tabular-nums ${netColor}`}>
           {formatNet(bankerNet)}
         </p>
-        <p className="text-yellow-400/60 text-xs mt-3">
+        <p className="text-yellow-400/60 text-xs mt-3 mb-6">
           = −(sum of all player nets)
+        </p>
+
+        <p className="text-yellow-300 text-sm uppercase tracking-widest mb-1">
+          Majority Rounds
+        </p>
+        <p className="text-3xl font-bold tabular-nums text-white">
+          {majorityRounds}
         </p>
       </div>
 
@@ -129,28 +155,53 @@ export default function BankerBoard({
                 Player Nets
               </p>
               <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                {players
-                  .filter((p) => p.role === 'player')
-                  .map((p, idx) => (
+                {activePlayers.map((p, idx) => {
+                  const pRounds = (p.round_history || []).length;
+                  const isBehind = pRounds < majorityRounds;
+                  return (
                     <div
                       key={p.uuid}
-                      className="flex justify-between items-center py-1.5"
+                      className="flex justify-between items-center py-2 border-b border-yellow-700/20 last:border-0"
                     >
-                      <span className="text-yellow-200/70 text-sm truncate max-w-[150px]">
-                        {p.name || `Player ${idx + 1}`}
-                      </span>
-                      <span
-                        className={`font-mono text-sm font-medium ${p.current_net > 0
-                          ? 'text-green-400'
-                          : p.current_net < 0
-                            ? 'text-red-400'
-                            : 'text-yellow-200/50'
-                          }`}
-                      >
-                        {formatNet(p.current_net || 0)}
-                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-yellow-200 text-sm font-medium truncate max-w-[120px]">
+                          {p.name || `Player ${idx + 1}`}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${isBehind ? 'bg-red-900/40 text-red-300 border border-red-700/50' : 'bg-yellow-900/30 text-yellow-500/80'}`}>
+                            {pRounds} R
+                          </span>
+                          {isBehind && (
+                            <button
+                              onClick={() => promptPlayerTie(p.uuid, majorityRounds - pRounds)}
+                              className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                              title={`Prompt player to log ${majorityRounds - pRounds} missing round(s)`}
+                            >
+                              Off Track
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={`font-mono text-base font-bold ${p.current_net > 0
+                            ? 'text-green-400'
+                            : p.current_net < 0
+                              ? 'text-red-400'
+                              : 'text-yellow-200/50'
+                            }`}
+                        >
+                          {formatNet(p.current_net || 0)}
+                        </span>
+                        {p.base_amount > 0 && (
+                          <div className="text-yellow-500/40 text-xs font-mono mt-0.5">
+                            B: ${p.base_amount}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  );
+                })}
               </div>
             </div>
           )}

@@ -16,6 +16,7 @@
 
 import { useState } from 'react';
 import LedDisplay from './LedDisplay';
+import StreakAnimation from './StreakAnimation';
 import { motion } from 'framer-motion';
 
 export default function PlayerBoard({
@@ -33,6 +34,9 @@ export default function PlayerBoard({
   mode, // 'single' | 'multi'
   playerName,
   onSetName,
+  // New props for remote tie prompting
+  tiePromptActive,
+  resolveTiePrompt,
 }) {
   const [baseInput, setBaseInput] = useState(baseAmount > 0 ? String(baseAmount) : '');
   const [baseConfirmed, setBaseConfirmed] = useState(baseAmount > 0);
@@ -42,18 +46,36 @@ export default function PlayerBoard({
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(playerName || '');
 
+  // Streak animation state
+  const [streakAnim, setStreakAnim] = useState(null);
+
   // Round history from local storage
   const [roundHistory, setRoundHistory] = useState(() => {
     try {
       const saved = localStorage.getItem('player_round_history');
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return []; // clear old array format
+        const currentSessionId = mode === 'single' ? 'single' : roomId;
+        if (parsed && parsed.sessionId === currentSessionId) {
+          return parsed.history || [];
+        }
+      }
+      return [];
     } catch {
       return [];
     }
   });
 
+  const saveHistory = (historyToSave) => {
+    const currentSessionId = mode === 'single' ? 'single' : roomId;
+    localStorage.setItem('player_round_history', JSON.stringify({
+      sessionId: currentSessionId,
+      history: historyToSave
+    }));
+  };
+
   const handleAction = (m) => {
-    onAction(m);
     const amount = m * baseAmount;
     const newRecord = {
       id: Date.now(),
@@ -62,16 +84,35 @@ export default function PlayerBoard({
       time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
     };
     const updatedHistory = [newRecord, ...roundHistory];
+
+    // Check for win/loss streak >= 3
+    if (updatedHistory.length >= 3 && updatedHistory[0].multiplier !== 0) {
+      const firstType = updatedHistory[0].multiplier > 0 ? 'win' : 'loss';
+      let count = 0;
+      for (const r of updatedHistory) {
+        if (r.multiplier === 0) break; // tie breaks the streak
+        const type = r.multiplier > 0 ? 'win' : 'loss';
+        if (type === firstType) count++;
+        else break;
+      }
+      if (count >= 3) {
+        // Trigger popup
+        setStreakAnim({ count, type: firstType, id: Date.now() });
+      }
+    }
+
+    onAction(m, updatedHistory);
+
     setRoundHistory(updatedHistory);
-    localStorage.setItem('player_round_history', JSON.stringify(updatedHistory));
+    saveHistory(updatedHistory);
   };
 
   const handleUndo = () => {
-    onUndo();
     if (roundHistory.length > 0) {
       const updatedHistory = roundHistory.slice(1);
+      onUndo(updatedHistory);
       setRoundHistory(updatedHistory);
-      localStorage.setItem('player_round_history', JSON.stringify(updatedHistory));
+      saveHistory(updatedHistory);
     }
   };
 
@@ -284,9 +325,39 @@ export default function PlayerBoard({
             </div>
           </div>
 
+          {/* Tie & Undo buttons */}
+          <div className="grid grid-cols-2 gap-3 mt-1 shrink-0">
+            {/* Tie button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleAction(0)}
+              className="w-full py-3 rounded-2xl text-lg font-bold transition-colors bg-gray-600 hover:bg-gray-500 active:bg-gray-400 text-white shadow-lg"
+            >
+              Tie / 和局
+            </motion.button>
+
+            {/* Undo button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleUndo}
+              disabled={lastActionAmount === 0 && (!roundHistory.length || roundHistory[0].multiplier !== 0)}
+              className={`w-full py-3 rounded-2xl text-lg font-bold transition-colors ${lastActionAmount !== 0 || (roundHistory.length > 0 && roundHistory[0].multiplier === 0)
+                ? 'bg-yellow-500/90 hover:bg-yellow-400 text-yellow-950 shadow-lg'
+                : 'bg-green-800/40 text-green-600/40 cursor-not-allowed'
+                }`}
+            >
+              Undo
+              {lastActionAmount !== 0 && (
+                <span className="ml-1 text-sm font-normal opacity-80">
+                  ({lastActionAmount > 0 ? '+' : ''}${lastActionAmount.toFixed(2)})
+                </span>
+              )}
+            </motion.button>
+          </div>
+
           {/* Round History */}
           {roundHistory.length > 0 && (
-            <div className="mt-2 bg-green-950/50 rounded-2xl p-4 border border-green-700/30 flex-1 min-h-[120px] max-h-[200px] flex flex-col">
+            <div className="mt-1 bg-green-950/50 rounded-2xl p-4 border border-green-700/30 flex-1 min-h-[120px] max-h-[200px] flex flex-col">
               <div className="flex justify-between items-center mb-3 shrink-0">
                 <h3 className="text-green-300/80 text-sm font-bold uppercase tracking-wider">Round History</h3>
                 <span className="text-xs text-green-500/50 font-medium">{roundHistory.length} rounds</span>
@@ -296,9 +367,9 @@ export default function PlayerBoard({
                   <div key={record.id} className="flex justify-between items-center text-sm py-1.5 border-b border-green-800/30 last:border-0">
                     <span className="text-green-500/60 font-mono text-xs">{record.time}</span>
                     <span className="font-medium text-white/90">
-                      x{Math.abs(record.multiplier)} {record.multiplier > 0 ? '(Win)' : '(Loss)'}
+                      {record.multiplier === 0 ? 'Tie / 和局' : `x${Math.abs(record.multiplier)} ${record.multiplier > 0 ? '(Win)' : '(Loss)'}`}
                     </span>
-                    <span className={`font-bold tabular-nums ${record.amount > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <span className={`font-bold tabular-nums ${record.multiplier === 0 ? 'text-gray-400' : record.amount > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
                       {record.amount > 0 ? '+' : ''}${record.amount.toFixed(2)}
                     </span>
                   </div>
@@ -306,25 +377,57 @@ export default function PlayerBoard({
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* Undo button */}
-          <div className="mt-auto pt-2">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleUndo}
-              disabled={lastActionAmount === 0}
-              className={`w-full py-4 rounded-2xl text-lg font-bold transition-colors ${lastActionAmount !== 0
-                ? 'bg-yellow-500/90 hover:bg-yellow-400 text-yellow-950 shadow-lg'
-                : 'bg-green-800/40 text-green-600/40 cursor-not-allowed'
-                }`}
-            >
-              Undo
-              {lastActionAmount !== 0 && (
-                <span className="ml-2 text-sm font-normal opacity-80">
-                  ({lastActionAmount > 0 ? '+' : ''}${lastActionAmount.toFixed(2)})
-                </span>
-              )}
-            </motion.button>
+      {/* ---- Streak Animation Overlay ---- */}
+      <StreakAnimation streak={streakAnim} onComplete={() => setStreakAnim(null)} />
+
+      {/* ---- Banker Tie Prompt Modal ---- */}
+      {tiePromptActive && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="bg-green-950 border-2 border-yellow-500/50 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_30px_rgba(234,179,8,0.3)] transform scale-100 flex flex-col items-center text-center">
+
+            <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
+              <span className="text-3xl">⚠️</span>
+            </div>
+
+            <h3 className="text-2xl font-bold text-yellow-400 mb-2">Message from Banker</h3>
+
+            <p className="text-green-100 mb-6 font-medium text-lg leading-snug">
+              Did you forget to update or pause the game?
+              <br />
+              <span className="text-sm text-green-300/80 mt-2 block">
+                The Banker is asking you to log {typeof tiePromptActive === 'number' && tiePromptActive > 1 ? `${tiePromptActive} Ties (和局)` : 'a Tie (和局)'}.
+              </span>
+            </p>
+
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => resolveTiePrompt(false)}
+                className="flex-1 px-4 py-3 bg-red-900/50 hover:bg-red-800/80 text-red-200 rounded-xl font-medium transition-colors border border-red-700/30"
+              >
+                Decline
+              </button>
+              <button
+                onClick={async () => {
+                  const missingCount = typeof tiePromptActive === 'number' ? tiePromptActive : 1;
+                  if (missingCount === 1) {
+                    resolveTiePrompt(false);
+                    handleAction(0);
+                  } else {
+                    const newHistory = await resolveTiePrompt(true, roundHistory);
+                    if (newHistory) {
+                      setRoundHistory(newHistory);
+                      saveHistory(newHistory);
+                    }
+                  }
+                }}
+                className="flex-1 px-4 py-3 bg-yellow-500 hover:bg-yellow-400 text-yellow-950 rounded-xl font-bold transition-colors shadow-lg"
+              >
+                Confirm Tie
+              </button>
+            </div>
           </div>
         </div>
       )}

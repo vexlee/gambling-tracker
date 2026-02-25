@@ -74,6 +74,7 @@ export function useGameSession() {
   const [bankerNet, setBankerNet] = useState(0); // for banker view
   const [players, setPlayers] = useState([]); // full player list for banker
   const [roomStatus, setRoomStatus] = useState(null); // 'active' | 'ended'
+  const [tiePromptActive, setTiePromptActive] = useState(false); // Can be a boolean or a number (number of missing rounds)
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -153,6 +154,7 @@ export function useGameSession() {
         base_amount: 0,
         current_net: 0,
         last_action_amount: 0,
+        round_history: [],
       });
 
       if (playerErr) throw playerErr;
@@ -228,6 +230,7 @@ export function useGameSession() {
           base_amount: 0,
           current_net: 0,
           last_action_amount: 0,
+          round_history: [],
         });
 
         if (insertErr) throw insertErr;
@@ -294,7 +297,7 @@ export function useGameSession() {
 
   /** Apply a multiplier action in multiplayer mode */
   const playerAction = useCallback(
-    async (multiplier) => {
+    async (multiplier, updatedHistory = null) => {
       if (baseAmount <= 0 || role !== 'player') return;
       const delta = baseAmount * multiplier;
       const newNet = currentNet + delta;
@@ -303,14 +306,19 @@ export function useGameSession() {
       setCurrentNet(newNet);
       setLastActionAmount(delta);
 
+      const payload = {
+        current_net: newNet,
+        last_action_amount: delta,
+        room_id: roomId,
+        updated_at: new Date().toISOString(),
+      };
+      if (updatedHistory) {
+        payload.round_history = updatedHistory;
+      }
+
       const { error: updateErr } = await supabase
         .from('players')
-        .update({
-          current_net: newNet,
-          last_action_amount: delta,
-          room_id: roomId,
-          updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq('uuid', deviceUUID)
         .eq('room_id', roomId);
 
@@ -325,7 +333,7 @@ export function useGameSession() {
   );
 
   /** Undo the last multiplayer action (max 1 step) */
-  const playerUndo = useCallback(async () => {
+  const playerUndo = useCallback(async (updatedHistory = null) => {
     if (lastActionAmount === 0 || role !== 'player') return;
     const newNet = currentNet - lastActionAmount;
 
@@ -334,14 +342,19 @@ export function useGameSession() {
     const prevLastAction = lastActionAmount;
     setLastActionAmount(0);
 
+    const payload = {
+      current_net: newNet,
+      last_action_amount: 0,
+      room_id: roomId,
+      updated_at: new Date().toISOString(),
+    };
+    if (updatedHistory) {
+      payload.round_history = updatedHistory;
+    }
+
     const { error: updateErr } = await supabase
       .from('players')
-      .update({
-        current_net: newNet,
-        last_action_amount: 0,
-        room_id: roomId,
-        updated_at: new Date().toISOString(),
-      })
+      .update(payload)
       .eq('uuid', deviceUUID)
       .eq('room_id', roomId);
 
@@ -352,6 +365,81 @@ export function useGameSession() {
       setError('Undo failed. Please try again.');
     }
   }, [lastActionAmount, role, currentNet, deviceUUID, roomId]);
+
+  /** Mass insert ties (for when player confirms multiple missing rounds) */
+  const playerMassTie = useCallback(async (count, currentRoundHistory = []) => {
+    if (count <= 0 || role !== 'player') return;
+
+    // Create 'count' number of tie records
+    const newRecords = [];
+    const now = Date.now();
+    for (let i = 0; i < count; i++) {
+      newRecords.push({
+        id: now + i,
+        multiplier: 0,
+        amount: 0,
+        time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      });
+    }
+
+    const updatedHistory = [...newRecords, ...currentRoundHistory];
+
+    // For net and last amount, we are just tying, so net doesn't change, lastAction is 0
+    setLastActionAmount(0);
+
+    const payload = {
+      current_net: currentNet,
+      last_action_amount: 0,
+      room_id: roomId,
+      updated_at: new Date().toISOString(),
+      round_history: updatedHistory
+    };
+
+    const { error: updateErr } = await supabase
+      .from('players')
+      .update(payload)
+      .eq('uuid', deviceUUID)
+      .eq('room_id', roomId);
+
+    if (updateErr) {
+      setError('Failed to log missing rounds. Please try again.');
+    }
+
+    return updatedHistory;
+  }, [role, currentNet, deviceUUID, roomId]);
+
+  // =========================================================================
+  // MULTIPLAYER: BANKER ACTIONS
+  // =========================================================================
+
+  /** Force a tie for a specific player (usually if they forgot to record a round) */
+  const promptPlayerTie = useCallback(async (playerId, missingCount = 1) => {
+    if (role !== 'banker' || !realtimeChannelRef.current) return;
+
+    realtimeChannelRef.current.send({
+      type: 'broadcast',
+      event: 'prompt_tie',
+      payload: { target_uuid: playerId, missedRounds: missingCount }
+    });
+  }, [role]);
+
+  const resolveTiePrompt = useCallback(async (accept, currentRoundHistory) => {
+    const missingCount = typeof tiePromptActive === 'number' ? tiePromptActive : 1;
+    setTiePromptActive(false);
+
+    if (accept) {
+      if (missingCount > 1) {
+        return await playerMassTie(missingCount, currentRoundHistory);
+      } else {
+        // Single tie fallback
+        // Note: PlayerBoard calls handleAction(0) directly for single ties, 
+        // so we might not use this fallback if handled at the component level.
+        // But for mass ties, having it here or relying on PlayerBoard is fine.
+        // We will return the missing count for PlayerBoard to use.
+      }
+    }
+    return null;
+  }, [tiePromptActive, playerMassTie]);
 
   // =========================================================================
   // MULTIPLAYER: REALTIME SUBSCRIPTION (Banker View)
@@ -373,17 +461,19 @@ export function useGameSession() {
     }
   }, [roomId]);
 
-  /** Subscribe to realtime changes on the `players` table for the current room */
+  /** Subscribe to realtime changes */
   useEffect(() => {
-    if (mode !== 'multi' || !roomId || role !== 'banker') return;
+    if (mode !== 'multi' || !roomId) return;
 
-    // Initial fetch
-    fetchRoomPlayers();
+    if (role === 'banker') {
+      fetchRoomPlayers();
+    }
 
-    // Subscribe to INSERT, UPDATE, DELETE on players where room_id matches
-    const channel = supabase
-      .channel(`room-${roomId}`)
-      .on(
+    const channel = supabase.channel(`room-${roomId}`);
+
+    if (role === 'banker') {
+      // Banker listens to postgres changes
+      channel.on(
         'postgres_changes',
         {
           event: '*',
@@ -392,11 +482,23 @@ export function useGameSession() {
           filter: `room_id=eq.${roomId}`,
         },
         () => {
-          // On any change, re-fetch the full player list for accuracy
           fetchRoomPlayers();
         }
-      )
-      .subscribe();
+      );
+    } else if (role === 'player') {
+      // Player listens to broadcast events
+      channel.on(
+        'broadcast',
+        { event: 'prompt_tie' },
+        (payload) => {
+          if (payload.payload?.target_uuid === deviceUUID) {
+            setTiePromptActive(payload.payload?.missedRounds || 1);
+          }
+        }
+      );
+    }
+
+    channel.subscribe();
 
     realtimeChannelRef.current = channel;
 
@@ -431,6 +533,7 @@ export function useGameSession() {
     setBankerNet(0);
     setPlayers([]);
     setRoomStatus(null);
+    setTiePromptActive(false);
     setMode(null);
     setError(null);
     localStorage.removeItem('auto_join_room');
@@ -476,6 +579,10 @@ export function useGameSession() {
     setPlayerBase,
     playerAction,
     playerUndo,
+    playerMassTie,
+    promptPlayerTie,
+    tiePromptActive,
+    resolveTiePrompt,
     leaveRoom,
   };
 }

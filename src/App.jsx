@@ -52,6 +52,8 @@ export default function App() {
         roomId={game.roomId}
         playerName={game.playerName}
         onSetName={game.setPlayerName}
+        tiePromptActive={game.tiePromptActive}
+        resolveTiePrompt={game.resolveTiePrompt}
       />
     );
   }
@@ -66,6 +68,7 @@ export default function App() {
         players={game.players}
         roomId={game.roomId}
         onExit={game.leaveRoom}
+        promptPlayerTie={game.promptPlayerTie}
       />
     );
   }
