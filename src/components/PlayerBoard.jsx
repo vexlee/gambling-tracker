@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import LedDisplay from './LedDisplay';
 import StreakAnimation from './StreakAnimation';
+import MultiplierButton from './MultiplierButton';
 import { motion } from 'framer-motion';
 
 export default function PlayerBoard({
@@ -294,14 +295,12 @@ export default function PlayerBoard({
             </p>
             <div className="grid grid-cols-5 gap-2">
               {positiveMultipliers.map((m) => (
-                <motion.button
-                  whileTap={{ scale: 0.85 }}
+                <MultiplierButton
                   key={`pos-${m}`}
+                  multiplier={m}
+                  type="positive"
                   onClick={() => handleAction(m)}
-                  className="aspect-square flex items-center justify-center bg-green-600 hover:bg-green-500 active:bg-green-400 rounded-2xl text-lg font-bold transition-colors shadow-lg"
-                >
-                  x{m}
-                </motion.button>
+                />
               ))}
             </div>
           </div>
@@ -313,14 +312,12 @@ export default function PlayerBoard({
             </p>
             <div className="grid grid-cols-5 gap-2">
               {negativeMultipliers.map((m) => (
-                <motion.button
-                  whileTap={{ scale: 0.85 }}
+                <MultiplierButton
                   key={`neg-${m}`}
+                  multiplier={m}
+                  type="negative"
                   onClick={() => handleAction(m)}
-                  className="aspect-square flex items-center justify-center bg-red-700/80 hover:bg-red-600 active:bg-red-500 rounded-2xl text-lg font-bold transition-colors shadow-lg"
-                >
-                  x{Math.abs(m)}
-                </motion.button>
+                />
               ))}
             </div>
           </div>
