@@ -14,7 +14,9 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import LedDisplay from './LedDisplay';
+import GameSummaryReport from './GameSummaryReport';
 
 export default function BankerBoard({
   // Data from useGameSession
@@ -27,7 +29,9 @@ export default function BankerBoard({
   // ---- Timer ----
   const [elapsed, setElapsed] = useState(0);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const timerRef = useRef(null);
+  const reportRef = useRef(null);
 
   useEffect(() => {
     // Start the game duration timer on mount
@@ -87,8 +91,40 @@ export default function BankerBoard({
     }
   }
 
+  const handleGenerateReport = async () => {
+    if (!reportRef.current || isGenerating) return;
+    try {
+      setIsGenerating(true);
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2, // High resolution
+        useCORS: true,
+        backgroundColor: '#0a0a0a', // dark theme bg
+      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+      const link = document.createElement('a');
+      link.download = `LatteLedger-Summary-${roomId}.jpg`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Failed to generate report:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-yellow-800 via-yellow-900 to-yellow-950 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-yellow-800 via-yellow-900 to-yellow-950 text-white flex flex-col relative overflow-hidden">
+      {/* Hidden Report Container */}
+      <div className="absolute top-[-9999px] left-[-9999px]">
+        <GameSummaryReport
+          ref={reportRef}
+          bankerNet={bankerNet}
+          players={players}
+          roomId={roomId}
+          elapsed={elapsed}
+        />
+      </div>
       {/* ---- Header ---- */}
       <header className="px-4 pt-6 pb-3 flex items-center justify-between">
         <div>
@@ -97,12 +133,29 @@ export default function BankerBoard({
             Room: <span className="font-mono font-bold text-lg">{roomId}</span>
           </p>
         </div>
-        <button
-          onClick={() => setShowExitConfirm(true)}
-          className="px-4 py-2 bg-yellow-700/60 hover:bg-yellow-600/80 rounded-xl text-sm font-medium transition-colors"
-        >
-          End Game
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleGenerateReport}
+            disabled={isGenerating}
+            className="px-3 py-2 bg-yellow-500 text-yellow-950 hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold shadow-lg shadow-yellow-900/20 transition-colors flex items-center gap-1.5"
+            title="Download Game Summary Report"
+          >
+            {isGenerating ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-yellow-900/30 border-t-yellow-900 rounded-full animate-spin"></span>
+                Generating...
+              </>
+            ) : (
+              'Summary'
+            )}
+          </button>
+          <button
+            onClick={() => setShowExitConfirm(true)}
+            className="px-3 py-2 bg-yellow-800/60 hover:bg-yellow-700/80 rounded-xl text-sm font-medium transition-colors border border-yellow-700/30"
+          >
+            End Game
+          </button>
+        </div>
       </header>
 
       {/* ---- Timer ---- */}
